@@ -60,7 +60,7 @@ public abstract class AircraftRenderer <T extends AircraftEntity, M extends Enti
 
 
         float f7 = this.getBob(pEntity, pPartialTicks);
-        this.setupRotations(pEntity, pPoseStack, f7, 0.0f, pPartialTicks);
+        this.setupRotations(pEntity, pPoseStack, f7, pEntityYaw, pPartialTicks);
         pPoseStack.scale(-1.0F, -1.0F, 1.0F);
         this.scale(pEntity, pPoseStack, pPartialTicks);
         pPoseStack.translate(0.0F, -1.501F, 0.0F);
@@ -100,6 +100,7 @@ public abstract class AircraftRenderer <T extends AircraftEntity, M extends Enti
         }
 
         if (!pEntityLiving.hasPose(Pose.SLEEPING)) {
+            LOGGER.info(String.valueOf(pRotationYaw));
             pPoseStack.mulPose(Axis.YP.rotationDegrees(180.0F - pRotationYaw));
         }
 

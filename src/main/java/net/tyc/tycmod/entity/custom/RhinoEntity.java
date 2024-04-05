@@ -31,6 +31,7 @@ public class RhinoEntity extends Animal {
 
     public RhinoEntity(EntityType<? extends Animal> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
+
     }
 
     public final AnimationState idleAnimationState = new AnimationState();
@@ -43,7 +44,6 @@ public class RhinoEntity extends Animal {
     @Override
     public void tick() {
         super.tick();
-
         if(this.level().isClientSide()) {
             setupAnimationStates();
         }

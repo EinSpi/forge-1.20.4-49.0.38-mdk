@@ -19,12 +19,105 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix3f;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 public abstract class AircraftEntity extends Entity {
 
     protected static final EntityDataAccessor<Integer> f_302249_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.INT);
     protected static final EntityDataAccessor<Integer> f_302571_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.INT);
     protected static final EntityDataAccessor<Float> f_302371_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
+
+    protected Matrix3f RotationMatrix1to0=
+            new Matrix3f(   1.0f,   0.0f,       0.0f,
+                            0.0f,   0.7071f,    0.7071f,
+                            0.0f,   -0.7071f,   0.7071f);// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
+    private double atan2(double a, double b)
+    {
+        if (Math.abs(b)<=1e-6)
+        {
+            if(a>0)
+            {
+                return Math.PI/2;
+            }
+            else if(a==0)
+            {
+                return 0;//undifiniert
+            }
+            else
+            {
+                return  -Math.PI/2;
+            }
+        }
+        else if (b>0)
+        {
+            return Math.atan(a/b);
+        }
+        else
+        {
+            return Math.atan(a/b)+Math.PI;
+        }
+    }
+    protected Vector3f EulerAnglesFromRotationMatrix()
+    {
+        // from RotMat to Euler Angle.
+        Matrix3f RotationMatrix0to1= new Matrix3f(RotationMatrix1to0.m00,RotationMatrix1to0.m01,RotationMatrix1to0.m02,
+                RotationMatrix1to0.m10,RotationMatrix1to0.m11,RotationMatrix1to0.m12,
+                RotationMatrix1to0.m20,RotationMatrix1to0.m21,RotationMatrix1to0.m22);
+        RotationMatrix0to1.invert();
+        //y axis: gamma
+        //x axis: beta
+        //z axis: alpha
+        float gamma;
+        float beta;
+        float alpha;
+        double sy=Math.sqrt(Math.fma(RotationMatrix0to1.m11,RotationMatrix0to1.m11,RotationMatrix0to1.m21*RotationMatrix0to1.m21));
+        boolean singular=sy<1e-6;
+        if(singular)
+        {
+            //radian to degree
+            if(RotationMatrix0to1.m01>0)
+            {
+                beta=-90f;
+                gamma=(float) (-atan2(RotationMatrix0to1.m12,RotationMatrix0to1.m22));
+            }
+            else
+            {
+                beta=90f;
+                gamma=(float) (atan2(RotationMatrix0to1.m12,RotationMatrix0to1.m22));
+
+            }
+            gamma=gamma*(180.0f/(float)Math.PI);//radian to degree
+            alpha=0.0f;
+        }
+        else
+        {
+            beta=(float) atan2(-RotationMatrix0to1.m01,sy);//radian to degree
+            gamma=(float) atan2(RotationMatrix0to1.m02/Math.cos(beta),RotationMatrix0to1.m00/Math.cos(beta));
+            alpha=(float) atan2(RotationMatrix0to1.m21/Math.cos(beta),RotationMatrix0to1.m11/Math.cos(beta));
+            beta=beta*(180.0f/(float) Math.PI);
+            gamma=gamma*(180.0f/(float) Math.PI);
+            alpha=alpha*(180.0f/(float) Math.PI);
+        }
+
+        return new Vector3f(gamma,beta,alpha);
+
+    }
+
+    private void UseEulerAngleToSetRotMatrix(float roll, float yaw, float pitch)
+    {
+
+    }
+
+    protected void RotateSmallValueAround(float small_value, Vector3f axis)
+    {
+        //small_value here radian
+        axis.normalize();
+        RotationMatrix1to0.rotate(small_value,axis);
+    }
+
+
 
     public AircraftEntity(EntityType<?> p_310168_, Level p_309578_) {
         super(p_310168_, p_309578_);
@@ -33,6 +126,7 @@ public abstract class AircraftEntity extends Entity {
     /**
      * Called when the entity is attacked.
      */
+
     public boolean hurt(DamageSource p_310829_, float p_310313_) {
         if (!this.level().isClientSide && !this.isRemoved()) {
             if (this.isInvulnerableTo(p_310829_)) {
