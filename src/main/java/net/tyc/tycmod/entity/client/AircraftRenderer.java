@@ -60,7 +60,7 @@ public abstract class AircraftRenderer <T extends AircraftEntity, M extends Enti
 
 
         float f7 = this.getBob(pEntity, pPartialTicks);
-        this.setupRotations(pEntity, pPoseStack, f7, pEntityYaw, pPartialTicks);
+        this.setupRotations(pEntity, pPoseStack, f7, pEntityYaw,pEntity.getXRot(), pPartialTicks);
         pPoseStack.scale(-1.0F, -1.0F, 1.0F);
         this.scale(pEntity, pPoseStack, pPartialTicks);
         pPoseStack.translate(0.0F, -1.501F, 0.0F);
@@ -70,6 +70,7 @@ public abstract class AircraftRenderer <T extends AircraftEntity, M extends Enti
         this.model.prepareMobModel(pEntity, f4, f8, pPartialTicks);
         this.model.setupAnim(pEntity, f4, f8, f7, 0.0f, f5);
         Minecraft minecraft = Minecraft.getInstance();
+
         boolean flag = this.isBodyVisible(pEntity);
         boolean flag1 = !flag && !pEntity.isInvisibleTo(minecraft.player);
         boolean flag2 = minecraft.shouldEntityAppearGlowing(pEntity);
@@ -94,14 +95,18 @@ public abstract class AircraftRenderer <T extends AircraftEntity, M extends Enti
         return (float)pLivingBase.tickCount + pPartialTick;
     }
 
-    protected void setupRotations(T pEntityLiving, PoseStack pPoseStack, float pAgeInTicks, float pRotationYaw, float pPartialTicks) {
+    protected void setupRotations(T pEntityLiving, PoseStack pPoseStack, float pAgeInTicks, float pRotationYaw, float pRotationPitch,float pPartialTicks) {
         if (this.isShaking(pEntityLiving)) {
             pRotationYaw += (float)(Math.cos((double)pEntityLiving.tickCount * 3.25D) * Math.PI * (double)0.4F);
         }
 
         if (!pEntityLiving.hasPose(Pose.SLEEPING)) {
-            LOGGER.info(String.valueOf(pRotationYaw));
-            pPoseStack.mulPose(Axis.YP.rotationDegrees(180.0F - pRotationYaw));
+            float Yaw=pPartialTicks == 1.0F ? pEntityLiving.getYRot(): Mth.lerp(pPartialTicks, pEntityLiving.yRotO, pEntityLiving.getYRot());
+            pPoseStack.mulPose(Axis.YP.rotationDegrees(180.0F - Yaw));
+            float Pitch=pPartialTicks == 1.0F ? pEntityLiving.getXRot(): Mth.lerp(pPartialTicks, pEntityLiving.xRotO, pEntityLiving.getXRot());
+            pPoseStack.mulPose(Axis.XP.rotationDegrees(-Pitch));
+            float Roll=pPartialTicks == 1.0F ? pEntityLiving.getZRot(): Mth.lerp(pPartialTicks, pEntityLiving.zRotO, pEntityLiving.getZRot());
+            pPoseStack.mulPose(Axis.ZP.rotationDegrees(Roll));
         }
 
 

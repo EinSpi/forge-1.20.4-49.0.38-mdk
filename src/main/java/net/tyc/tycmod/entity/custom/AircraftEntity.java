@@ -31,6 +31,20 @@ public abstract class AircraftEntity extends Entity {
 
     protected Matrix3f RotationMatrix1to0=
             new Matrix3f();// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
+    protected float ZRot=0;
+    public float zRotO=0;
+
+    public void setZRot(float z)
+    {
+        this.ZRot=z;
+    }
+
+    public float getZRot()
+    {
+        return this.ZRot;
+    }
+
+
     private double atan2(double a, double b)
     {
         if (Math.abs(b)<=1e-6)
@@ -60,30 +74,26 @@ public abstract class AircraftEntity extends Entity {
     protected Vector3f EulerAnglesFromRotationMatrix()
     {
         // from RotMat to Euler Angle.
-        Matrix3f RotationMatrix0to1= new Matrix3f(RotationMatrix1to0.m00,RotationMatrix1to0.m01,RotationMatrix1to0.m02,
-                RotationMatrix1to0.m10,RotationMatrix1to0.m11,RotationMatrix1to0.m12,
-                RotationMatrix1to0.m20,RotationMatrix1to0.m21,RotationMatrix1to0.m22);
-        RotationMatrix0to1.invert();
         //y axis: gamma
         //x axis: beta
         //z axis: alpha
         float gamma;
         float beta;
         float alpha;
-        double sy=Math.sqrt(Math.fma(RotationMatrix0to1.m11,RotationMatrix0to1.m11,RotationMatrix0to1.m01*RotationMatrix0to1.m01));
+        double sy=Math.sqrt(Math.fma(RotationMatrix1to0.m11,RotationMatrix1to0.m11,RotationMatrix1to0.m01*RotationMatrix1to0.m01));
         boolean singular=sy<1e-6;
         if(singular)
         {
             //radian to degree
-            if(RotationMatrix0to1.m21>0)
+            if(RotationMatrix1to0.m21>0)
             {
                 beta=90f;
-                gamma=(float) (atan2(RotationMatrix0to1.m10,RotationMatrix0to1.m00));
+                gamma=(float) (atan2(RotationMatrix1to0.m10,RotationMatrix1to0.m00));
             }
             else
             {
                 beta=-90f;
-                gamma=(float) (-atan2(RotationMatrix0to1.m10,RotationMatrix0to1.m00));
+                gamma=(float) (-atan2(RotationMatrix1to0.m10,RotationMatrix1to0.m00));
 
             }
             gamma=gamma*(180.0f/(float)Math.PI);//radian to degree
@@ -91,9 +101,9 @@ public abstract class AircraftEntity extends Entity {
         }
         else
         {
-            beta=-(float) atan2(-RotationMatrix0to1.m21,sy);//radian to degree
-            gamma=-(float) atan2(RotationMatrix0to1.m20/Math.cos(beta),RotationMatrix0to1.m22/Math.cos(beta));
-            alpha=-(float) atan2(RotationMatrix0to1.m01/Math.cos(beta),RotationMatrix0to1.m11/Math.cos(beta));
+            beta=-(float) atan2(-RotationMatrix1to0.m21,sy);//radian to degree
+            gamma=-(float) atan2(RotationMatrix1to0.m20/Math.cos(beta),RotationMatrix1to0.m22/Math.cos(beta));
+            alpha=-(float) atan2(RotationMatrix1to0.m01/Math.cos(beta),RotationMatrix1to0.m11/Math.cos(beta));
             beta=beta*(180.0f/(float) Math.PI);
             gamma=gamma*(180.0f/(float) Math.PI);
             alpha=alpha*(180.0f/(float) Math.PI);
@@ -103,8 +113,22 @@ public abstract class AircraftEntity extends Entity {
 
     }
 
-    private void UseEulerAngleToSetRotMatrix(float roll, float yaw, float pitch)
+    private void UseEulerAngleToSetRotMatrix(float yaw, float pitch, float roll)
     {
+        Matrix3f RY=new Matrix3f((float) Math.cos(yaw),0.0f,(float) Math.sin(yaw),
+                                            0.0f,1.0f,0.0f,
+                                -(float) Math.sin(yaw),0.0f,(float) Math.cos(yaw));
+        Matrix3f RX=new Matrix3f(1.0f,0.0f,0.0f,
+                0.0f,(float) Math.cos(pitch), -(float) Math.sin(pitch),
+                0.0f,(float) Math.sin(pitch),   (float) Math.cos(pitch));
+        Matrix3f RZ=new Matrix3f((float) Math.cos(roll),-(float) Math.sin(roll),0.0f,
+                                (float) Math.sin(roll),(float) Math.cos(roll),0.0f,
+                                    0.0f,0.0f,1.0f);
+        Matrix3f RYXZ=new Matrix3f();
+        RYXZ.mulLocal(RY);
+        RYXZ.mulLocal(RX);
+        RYXZ.mulLocal(RZ);
+        this.RotationMatrix1to0=RYXZ;
 
     }
 
@@ -202,6 +226,19 @@ public abstract class AircraftEntity extends Entity {
     }
 
     abstract Item getDropItem();
+
+    @Override
+    public void tick() {
+        super.tick();
+        this.zRotO = this.getZRot();
+
+        //this.RotateSmallValueAround(0.05f,new Vector3f(1,0,1));
+        this.UseEulerAngleToSetRotMatrix(45.0f,20.0f,-30.0f);
+        Vector3f vec=this.EulerAnglesFromRotationMatrix();
+        this.setYRot(-vec.x);//y axis left-hand grabbing law
+        this.setXRot(vec.y);//x axis right-hand grabbing law
+        this.setZRot(-vec.z);//z axis left-hand grabbing law
+    }
 }
 
 

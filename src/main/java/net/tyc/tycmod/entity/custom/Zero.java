@@ -60,10 +60,7 @@ public class Zero extends  AircraftEntity{
         //this.RotationMatrix1to0=new Matrix3f(   1.0f,   0.0f,       0.0f,
                // 0.0f,   (float) Math.cos(theta),    (float) Math.sin(theta),
               //  0.0f,   -(float) Math.sin(theta),   (float) Math.cos(theta));
-        this.RotateSmallValueAround(0.05f,new Vector3f(1,0,1));
-        Vector3f vec=this.EulerAnglesFromRotationMatrix();
-        this.setYRot(vec.x);
-        this.setXRot(-vec.y);
+
 
 
     }
