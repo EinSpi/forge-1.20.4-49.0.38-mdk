@@ -30,9 +30,7 @@ public abstract class AircraftEntity extends Entity {
     protected static final EntityDataAccessor<Float> f_302371_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
 
     protected Matrix3f RotationMatrix1to0=
-            new Matrix3f(   1.0f,   0.0f,       0.0f,
-                            0.0f,   0.7071f,    0.7071f,
-                            0.0f,   -0.7071f,   0.7071f);// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
+            new Matrix3f();// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
     private double atan2(double a, double b)
     {
         if (Math.abs(b)<=1e-6)
@@ -72,20 +70,20 @@ public abstract class AircraftEntity extends Entity {
         float gamma;
         float beta;
         float alpha;
-        double sy=Math.sqrt(Math.fma(RotationMatrix0to1.m11,RotationMatrix0to1.m11,RotationMatrix0to1.m21*RotationMatrix0to1.m21));
+        double sy=Math.sqrt(Math.fma(RotationMatrix0to1.m11,RotationMatrix0to1.m11,RotationMatrix0to1.m01*RotationMatrix0to1.m01));
         boolean singular=sy<1e-6;
         if(singular)
         {
             //radian to degree
-            if(RotationMatrix0to1.m01>0)
+            if(RotationMatrix0to1.m21>0)
             {
-                beta=-90f;
-                gamma=(float) (-atan2(RotationMatrix0to1.m12,RotationMatrix0to1.m22));
+                beta=90f;
+                gamma=(float) (atan2(RotationMatrix0to1.m10,RotationMatrix0to1.m00));
             }
             else
             {
-                beta=90f;
-                gamma=(float) (atan2(RotationMatrix0to1.m12,RotationMatrix0to1.m22));
+                beta=-90f;
+                gamma=(float) (-atan2(RotationMatrix0to1.m10,RotationMatrix0to1.m00));
 
             }
             gamma=gamma*(180.0f/(float)Math.PI);//radian to degree
@@ -93,9 +91,9 @@ public abstract class AircraftEntity extends Entity {
         }
         else
         {
-            beta=(float) atan2(-RotationMatrix0to1.m01,sy);//radian to degree
-            gamma=(float) atan2(RotationMatrix0to1.m02/Math.cos(beta),RotationMatrix0to1.m00/Math.cos(beta));
-            alpha=(float) atan2(RotationMatrix0to1.m21/Math.cos(beta),RotationMatrix0to1.m11/Math.cos(beta));
+            beta=-(float) atan2(-RotationMatrix0to1.m21,sy);//radian to degree
+            gamma=-(float) atan2(RotationMatrix0to1.m20/Math.cos(beta),RotationMatrix0to1.m22/Math.cos(beta));
+            alpha=-(float) atan2(RotationMatrix0to1.m01/Math.cos(beta),RotationMatrix0to1.m11/Math.cos(beta));
             beta=beta*(180.0f/(float) Math.PI);
             gamma=gamma*(180.0f/(float) Math.PI);
             alpha=alpha*(180.0f/(float) Math.PI);
