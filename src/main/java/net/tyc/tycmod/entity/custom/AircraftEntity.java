@@ -10,6 +10,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.Boat;
@@ -20,6 +21,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.phys.Vec3;
 import org.checkerframework.checker.units.qual.Mass;
 import org.jetbrains.annotations.Nullable;
 import org.joml.*;
@@ -29,6 +31,7 @@ import org.slf4j.Logger;
 import java.lang.Math;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 public abstract class AircraftEntity extends Entity {
 
@@ -36,26 +39,28 @@ public abstract class AircraftEntity extends Entity {
     protected static final EntityDataAccessor<Integer> f_302571_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.INT);
     protected static final EntityDataAccessor<Float> f_302371_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
     private static final Logger LOGGER = LogUtils.getLogger();
-    protected Matrix3f RotationMatrix1to0=
-            new Matrix3f();// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
+    protected Matrix3d RotationMatrix1to0=
+            new Matrix3d(1.0,0.0,0.0,
+            0.0,0.0,-1.0,
+            0.0,1.0,0.0);// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
     protected float ZRot=0;
     public float zRotO=0;
 
-    protected float maximum_power;
-    protected float mass;
-    protected Matrix3f inertia;
+    protected double maximum_power;
+    protected double mass;
+    protected Matrix3d inertia;
     protected class AirDynamicElement
     {
-        public float area;
-        public Vector3f norm;
-        public Vector3f rotate_axis;
+        public double area;
+        public Vec3 norm;
+        public String rotate_axis;
         public float theta;
-        public Vector3f relative_pos;
-        public float balance_C_l;
-        public float balance_C_d;
+        public Vec3 relative_pos;
+        public double balance_C_l;
+        public double balance_C_d;
 
-        public AirDynamicElement(float area, Vector3f norm, Vector3f rotate_axis,
-                                 float theta, Vector3f relative_pos,float balance_C_l, float balance_C_d)
+        public AirDynamicElement(double area, Vec3 norm, String rotate_axis,
+                                 float theta, Vec3 relative_pos,double balance_C_l, double balance_C_d)
         {
             this.area=area;
             this.norm=norm;
@@ -67,68 +72,89 @@ public abstract class AircraftEntity extends Entity {
 
         }
 
-        public List<Vector3f> ComputeWingAirDynamicForcesInObjFrame(Vector3f speed_vector_in_object_frame, float air_density)
+        public List<Vec3> ComputeWingAirDynamicForcesInObjFrame(Vec3 speed_vector_in_object_frame, double air_density)
         {
             //compute s eq
             //Vector3f area_norm=new Vector3f(0.0f,(float) Math.cos(theta*Math.PI/180.0f),-(float) Math.sin(theta*Math.PI/180.0f));
-            Vector3f area_norm=new Vector3f();
-            norm.rotateAxis( (float)(theta*Math.PI/180.0f),rotate_axis.x,rotate_axis.y,rotate_axis.z,area_norm);
-            float cos=area_norm.angleCos(speed_vector_in_object_frame);
-            float S_eq=Math.abs(cos)*area;
-
-            //compute norm_lift
-            Vector3f norm_lift=new Vector3f();
-            speed_vector_in_object_frame.cross(area_norm,norm_lift);
-            norm_lift.cross(speed_vector_in_object_frame);
-            norm_lift.normalize();
-            //compute norm_friction
-            Vector3f norm_friction=new Vector3f();
-            speed_vector_in_object_frame.normalize(norm_friction);
-            //Compute Actual lift and friction coefficients
-            float C_l; float C_d;
-            if(cos>=0&&cos<=(float) Math.cos(70*Math.PI/180.0f))
+            Vec3 area_norm=Vec3.ZERO;
+            if (rotate_axis=="-x")
             {
-                if (balance_C_l==0.0f)
-                {
-                    C_l=cos*(0.4f/(float) Math.cos(70*Math.PI/180.0f));
-                }
-                else {
-                    C_l = balance_C_l + cos * (3 * balance_C_l / (float) Math.cos(70 * Math.PI / 180.0f));
-                }
+                area_norm=this.norm.xRot(theta);
+            }
+            else if(rotate_axis=="y")
+            {
+                area_norm=this.norm.yRot(theta);
             }
 
-            else if (cos<0&&cos>=(float) Math.cos(110f*Math.PI/180.0f))
-            {
-                if (balance_C_l==0)
-                {
-                    C_l=cos*(-0.4f/(float) Math.cos(70*Math.PI/180.0f));
-                }
-                else {
-                    C_l = balance_C_l + cos * (-3 * balance_C_l / (float) Math.cos(110 * Math.PI / 180.0f));
-                }
-            }
-            else
-            {
-                C_l=0;
-            }
 
-            C_d=balance_C_d+cos*cos*3*balance_C_d;
-            //Compute lift force and friction force
-            Vector3f force_in_obj_frame=new Vector3f();
-            float lift_coefficient=air_density*(speed_vector_in_object_frame.lengthSquared())*C_l*S_eq;
-            float friction_coefficient=air_density*(speed_vector_in_object_frame.lengthSquared())*C_d*S_eq;
-            Vector3f lift_force=new Vector3f();
-            Vector3f friction_force=new Vector3f();
-            norm_lift.mul(lift_coefficient,lift_force);
-            norm_friction.mul(friction_coefficient,friction_force);
-            lift_force.add(friction_force,force_in_obj_frame);
-            //Compute the moment of this force
-            Vector3f moment_in_obj_frame=new Vector3f();
-            relative_pos.cross(force_in_obj_frame,moment_in_obj_frame);
-            List<Vector3f> force_and_moment=new ArrayList<>();
-            force_and_moment.add(force_in_obj_frame);
-            force_and_moment.add(moment_in_obj_frame);
-            return force_and_moment;
+            if(speed_vector_in_object_frame.length()<=1.0E-4D)
+            {
+                List<Vec3> vec=new ArrayList<>();
+                vec.add(Vec3.ZERO);
+                vec.add(Vec3.ZERO);
+                return vec;
+
+            }
+            else {
+                double cos = area_norm.dot(speed_vector_in_object_frame)/(area_norm.length()*speed_vector_in_object_frame.length());
+
+                double S_eq = Math.abs(cos) * area+0.2*area;
+
+                //compute norm_lift
+                Vec3 norm_lift;
+                norm_lift=speed_vector_in_object_frame.cross(area_norm).cross(speed_vector_in_object_frame).normalize();
+
+                //compute norm_friction
+                Vec3 norm_friction;
+                norm_friction=speed_vector_in_object_frame.normalize();
+
+                //Compute Actual lift and friction coefficients
+                double C_l;
+                double C_d;
+                if (cos >= 0 && cos <= Math.cos(70 * Math.PI / 180.0)) {
+                    //LOGGER.info("case1");
+                    if (balance_C_l == 0.0) {
+                        C_l = cos * (0.4 / Math.cos(70 * Math.PI / 180.0));
+                    } else {
+                        C_l = balance_C_l + cos * (3 * balance_C_l / Math.cos(70 * Math.PI / 180.0));
+                        //LOGGER.info(String.valueOf(C_l));
+                    }
+                } else if (cos < 0 && cos >=  Math.cos(110 * Math.PI / 180.0)) {
+                    //LOGGER.info("case2");
+                    if (balance_C_l == 0.0) {
+                        C_l = cos * (-0.4 / Math.cos(110 * Math.PI / 180.0));
+                    } else {
+                        C_l = balance_C_l + cos * (-3 * balance_C_l /  Math.cos(110 * Math.PI / 180.0));
+                    }
+                } else {
+                    //LOGGER.info("case3");
+                    C_l = 0.0;
+                }
+
+
+                C_d = balance_C_d + cos * cos * 3 * balance_C_d;
+                //Compute lift force and friction force
+                double lift_coefficient=air_density*(speed_vector_in_object_frame.lengthSqr())*C_l*S_eq;
+                double friction_coefficient=air_density * (speed_vector_in_object_frame.lengthSqr()) * C_d * S_eq;
+                Vec3 lift_force ;
+                lift_force=norm_lift.scale(lift_coefficient);
+                //LOGGER.info(lift_force.toString());
+                Vec3 friction_force;
+                friction_force=norm_friction.scale(friction_coefficient);
+                Vec3 sum_force;
+                sum_force=lift_force.add(friction_force);
+                Vec3 sum_moment;
+
+                sum_moment=relative_pos.cross(sum_force);
+
+                List<Vec3> sum_force_and_moment=new ArrayList<>();
+                sum_force_and_moment.add(sum_force);
+                sum_force_and_moment.add(sum_moment);
+
+                return sum_force_and_moment;
+
+
+            }
         }
 
     }
@@ -137,10 +163,12 @@ public abstract class AircraftEntity extends Entity {
     protected AirDynamicElement tail;
     protected AirDynamicElement vertical_tail;
 
-    protected Vector3f speed_vector_in_global_frame;
-    protected Vector3f  speed_vector_in_object_frame=new Vector3f();
-    protected float air_density=0.013f;
-    protected float throttle_percentage=0.0f;
+    protected Vec3 speed_vector_in_global_frame=Vec3.ZERO;
+    protected Vec3 speed_vector_in_object_frame=Vec3.ZERO;
+    protected Vec3 air_speed_in_object_frame=Vec3.ZERO;
+    protected Vec3 angular_velocity=Vec3.ZERO;
+    protected double air_density=0.013d;
+    protected double throttle_percentage=0.0d;
 
 
 
@@ -157,46 +185,51 @@ public abstract class AircraftEntity extends Entity {
     {
         return this.ZRot;
     }
+    protected Vec3 premultiply(Matrix3d matrix, Vec3 vec)
+    {
+        return new Vec3(Math.fma(matrix.m00,vec.x,Math.fma(matrix.m01,vec.y,matrix.m02*vec.z)),
+                        Math.fma(matrix.m10,vec.x,Math.fma(matrix.m11,vec.y,matrix.m12*vec.z)),
+                        Math.fma(matrix.m20,vec.x,Math.fma(matrix.m21,vec.y,matrix.m22*vec.z)));
+    }
 
-    protected Vector3f EulerAnglesFromRotationMatrix()
+    protected Vec3 EulerAnglesFromRotationMatrix()
     {
         // from RotMat to Euler Angle.
         //y axis: gamma
         //x axis: beta
         //z axis: alpha
-        float gamma;
-        float beta;
-        float alpha;
+        double gamma;
+        double beta;
+        double alpha;
         double sy=Math.sqrt(Math.fma(RotationMatrix1to0.m11,RotationMatrix1to0.m11,RotationMatrix1to0.m01*RotationMatrix1to0.m01));
 
 
-        beta=(float) Math.atan2(RotationMatrix1to0.m21,sy);//beta from -pi/2 to pi/2
+        beta= Math.atan2(RotationMatrix1to0.m21,sy);//beta from -pi/2 to pi/2
 
         if (beta==Math.PI/2 || beta==-Math.PI/2)//singularity
             {
-                LOGGER.info("singular");
-                alpha=0.0f;
-                gamma=(float) Math.atan2(RotationMatrix1to0.m02,RotationMatrix1to0.m00);
+                alpha=0.0;
+                gamma= Math.atan2(RotationMatrix1to0.m02,RotationMatrix1to0.m00);
             }
         else
             {
-                gamma = (float) Math.atan2(-RotationMatrix1to0.m20 / Math.cos(beta), RotationMatrix1to0.m22 / Math.cos(beta));
-                alpha = (float) Math.atan2(-RotationMatrix1to0.m01 / Math.cos(beta), RotationMatrix1to0.m11 / Math.cos(beta));
+                gamma =  Math.atan2(-RotationMatrix1to0.m20 / Math.cos(beta), RotationMatrix1to0.m22 / Math.cos(beta));
+                alpha = Math.atan2(-RotationMatrix1to0.m01 / Math.cos(beta), RotationMatrix1to0.m11 / Math.cos(beta));
             }
 
             //beta from -pi/2 to pi/2
             //gamma from -pi to pi
             //alpha from -pi to pi
 
-            beta=beta*(180.0f/(float) Math.PI);
-            gamma=gamma*(180.0f/(float) Math.PI);
-            alpha=alpha*(180.0f/(float) Math.PI);
+            beta=beta*(180.0/ Math.PI);
+            gamma=gamma*(180.0/ Math.PI);
+            alpha=alpha*(180.0/ Math.PI);
             //beta from -90 to 90
             //gamma from -180 to 180
             //alpha from -180 to 180
 
 
-        return new Vector3f(gamma,beta,alpha);
+        return new Vec3(gamma,beta,alpha);
 
     }
 
@@ -219,7 +252,7 @@ public abstract class AircraftEntity extends Entity {
                                     0.0f,0.0f,1.0f);
 
 
-        Matrix3f RYXZ=new Matrix3f();
+        Matrix3d RYXZ=new Matrix3d();
         RYXZ.mul(RY);
         RYXZ.mul(RX);
         RYXZ.mul(RZ);
@@ -234,23 +267,23 @@ public abstract class AircraftEntity extends Entity {
         RotationMatrix1to0.rotate(small_value,axis);
     }
 
-    protected List<Vector3f> ComputeLinearAndAngularAccInObjectFrame(List<Vector3f> force_and_moment ,Matrix3f MassCenterInertia,float Mass)
+    protected List<Vec3> ComputeLinearAndAngularAccInObjectFrame(List<Vec3> force_and_moment ,Matrix3d MassCenterInertia,double Mass)
     {
         //Assume MassCenterInertia some times of identity matrix
         //Rigid Body Dynamics Formula N=Iw+wx(Iw)
         //I=lambda Identity, meaning the cross product term is 0.
         //then N=Iw,w=I^-1N
-        Vector3f linear_acc=new Vector3f();
-        force_and_moment.get(0).div(Mass,linear_acc);
+        Vec3 linear_acc;
+        linear_acc=force_and_moment.get(0).scale(1/Mass);
 
 
 
-        Matrix3f Inverted_Inertia=new Matrix3f();
+        Matrix3d Inverted_Inertia=new Matrix3d();
         MassCenterInertia.invert(Inverted_Inertia);
-        Vector3f angular_acc=new Vector3f();
-        force_and_moment.get(1).mulTranspose(Inverted_Inertia,angular_acc);
+        Vec3 angular_acc;
+        angular_acc=premultiply(Inverted_Inertia,force_and_moment.get(1));
 
-        List<Vector3f> linear_and_angular_acc=new ArrayList<>();
+        List<Vec3> linear_and_angular_acc=new ArrayList<>();
         linear_and_angular_acc.add(linear_acc);
         linear_and_angular_acc.add(angular_acc);
 
@@ -259,40 +292,40 @@ public abstract class AircraftEntity extends Entity {
 
 
 
-    protected List<Vector3f> RotateToGlobal(List<Vector3f> vec_list)
+    protected List<Vec3> RotateToGlobal(List<Vec3> vec_list)
     {
-        List<Vector3f> global_vec_list=new ArrayList<>();
-        Vector3f linear_acc_in_glb_frame=new Vector3f();
-        Vector3f angular_acc_in_glb_frame=new Vector3f();
-        vec_list.get(0).mulTranspose(this.RotationMatrix1to0,linear_acc_in_glb_frame);
-        vec_list.get(1).mulTranspose(this.RotationMatrix1to0,angular_acc_in_glb_frame);
-        global_vec_list.add(linear_acc_in_glb_frame);
-        global_vec_list.add(angular_acc_in_glb_frame);
+        Vec3 linear_acc_global=premultiply(RotationMatrix1to0,vec_list.get(0));
+        Vec3 angular_acc_global=premultiply(RotationMatrix1to0,vec_list.get(1));
+        List<Vec3> global_vec_list=new ArrayList<>();
+        global_vec_list.add(linear_acc_global);
+        global_vec_list.add(angular_acc_global);
 
         return global_vec_list;
     }
 
-    protected List<Vector3f> ComputeSumOfForcesAndMoments()
+    protected List<Vec3> ComputeSumOfForcesAndMoments()
     {
         //compute sum force
-        Vector3f gravity=ComputeGravityInObjFrame();
-        Vector3f engine_force=ComputeEngineForceInObjFrame();
-        Vector3f left_wing_force=left_wing.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(0);
-        Vector3f right_wing_force=right_wing.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(0);
-        Vector3f tail_force=tail.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(0);
-        Vector3f vertical_tail_force=vertical_tail.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(0);
+        Vec3 gravity=ComputeGravityInObjFrame();
+        Vec3 engine_force=ComputeEngineForceInObjFrame();
+        Vec3 left_wing_force=left_wing.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(0);
+        Vec3 right_wing_force=right_wing.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(0);
+        Vec3 tail_force=tail.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(0);
+        Vec3 vertical_tail_force=vertical_tail.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(0);
 
-        Vector3f sum_force=new Vector3f();
-        sum_force.add(gravity).add(engine_force).add(left_wing_force).add(right_wing_force).add(tail_force).add(vertical_tail_force);
+
+        Vec3 sum_force;
+        sum_force=gravity.add(engine_force).add(left_wing_force).add(right_wing_force).add(tail_force).add(vertical_tail_force);
+
         //compute sum moment, assume no moment for gravity and engine
-        Vector3f left_wing_moment=left_wing.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(1);
-        Vector3f right_wing_moment=right_wing.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(1);
-        Vector3f tail_moment=tail.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(1);
-        Vector3f vertical_tail_moment=vertical_tail.ComputeWingAirDynamicForcesInObjFrame(speed_vector_in_object_frame,air_density).get(1);
-        Vector3f sum_moment=new Vector3f();
-        sum_moment.add(left_wing_moment).add(right_wing_moment).add(tail_moment).add(vertical_tail_moment);
+        Vec3 left_wing_moment=left_wing.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
+        Vec3 right_wing_moment=right_wing.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
+        Vec3 tail_moment=tail.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
+        Vec3 vertical_tail_moment=vertical_tail.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
+        Vec3 sum_moment;
+        sum_moment=left_wing_moment.add(right_wing_moment).add(tail_moment).add(vertical_tail_moment);
 
-        List<Vector3f> force_and_moment= new ArrayList<>();
+        List<Vec3> force_and_moment= new ArrayList<>();
         force_and_moment.add(sum_force);
         force_and_moment.add(sum_moment);
         return force_and_moment;
@@ -302,18 +335,17 @@ public abstract class AircraftEntity extends Entity {
 
 
 
-    protected Vector3f ComputeEngineForceInObjFrame()
+    protected Vec3 ComputeEngineForceInObjFrame()
     {
-        return new Vector3f(0,0,(maximum_power*throttle_percentage)/speed_vector_in_object_frame.z);
+        return new Vec3(0,0,(maximum_power*throttle_percentage)/(speed_vector_in_object_frame.z+0.001));
     }
 
-    protected Vector3f ComputeGravityInObjFrame()
+    protected Vec3 ComputeGravityInObjFrame()
     {
-        Matrix3f ZeroToOne=new Matrix3f();
+        Matrix3d ZeroToOne=new Matrix3d();
         this.RotationMatrix1to0.invert(ZeroToOne);
-        Vector3f gravity_global=new Vector3f(0.0f,-9.8f*this.mass,0.0f);
-        Vector3f gravity_object=new Vector3f();
-        gravity_global.mulTranspose(ZeroToOne,gravity_object);
+        Vec3 gravity_global=new Vec3(0.0,-9.8*this.mass,0.0);
+        Vec3 gravity_object=premultiply(ZeroToOne,gravity_global);
         return  gravity_object;
     }
 
@@ -407,25 +439,39 @@ public abstract class AircraftEntity extends Entity {
 
     @Override
     public void tick() {
+        Matrix3d RotationMatrix0to1=new Matrix3d();
+        RotationMatrix1to0.invert(RotationMatrix0to1);
+        this.speed_vector_in_object_frame=premultiply(RotationMatrix0to1,getDeltaMovement());
+        this.air_speed_in_object_frame=this.speed_vector_in_object_frame.reverse();
+        List<Vec3> linear_and_angular_acc_in_glb=RotateToGlobal(ComputeLinearAndAngularAccInObjectFrame(ComputeSumOfForcesAndMoments(),inertia,mass));
+        //LOGGER.info(ComputeSumOfForcesAndMoments().get(0).toString());
+        Vec3 linear_acc= linear_and_angular_acc_in_glb.get(0);
+        this.setDeltaMovement(getDeltaMovement().add(linear_acc.scale(0.0015)));
+        //LOGGER.info(getDeltaMovement().toString());
+        this.move(MoverType.SELF,getDeltaMovement());
+        //setup rotations
+        Vec3 angular_acc=linear_and_angular_acc_in_glb.get(1);
+        this.angular_velocity=angular_velocity.add(angular_acc.scale(0.001));
+        LOGGER.info(angular_velocity.toString());
+        this.RotationMatrix1to0.rotate(angular_velocity.length()*0.001,angular_velocity.normalize().x,angular_velocity.normalize().y,angular_velocity.normalize().z);
+        Vec3 vec=this.EulerAnglesFromRotationMatrix();
+        this.setYRot(-(float) vec.x);//y axis left-hand grabbing law
+        this.setXRot((float) vec.y);//x axis right-hand grabbing law
+        this.setZRot(-(float) vec.z);
         super.tick();
         this.zRotO = this.getZRot();
 
         //this.RotateSmallValueAround(0.05f,new Vector3f(1,0,1));
-        this.UseEulerAngleToSetRotMatrix(45.0f,90.0f,-30.0f);
+        //this.UseEulerAngleToSetRotMatrix(45.0f,90.0f,-30.0f);
         //LOGGER.info("00:"+String.valueOf(RotationMatrix1to0.m00)+"01:"+String.valueOf(RotationMatrix1to0.m01)+"02:"+String.valueOf(RotationMatrix1to0.m02)
                 //+"10:"+String.valueOf(RotationMatrix1to0.m10)+"11:"+String.valueOf(RotationMatrix1to0.m11)+"12:"+String.valueOf(RotationMatrix1to0.m12)
                 //+"20:"+String.valueOf(RotationMatrix1to0.m20)+"21:"+String.valueOf(RotationMatrix1to0.m21)+"22:"+String.valueOf(RotationMatrix1to0.m22));
         //LOGGER.info("20:"+String.valueOf(RotationMatrix1to0.m20)+"21:"+String.valueOf(RotationMatrix1to0.m21)+"22:"+String.valueOf(RotationMatrix1to0.m22));
-        Vector3f vec=this.EulerAnglesFromRotationMatrix();
-        LOGGER.info("yaw:"+String.valueOf(vec.x)+"   "+"pitch"+String.valueOf(vec.y)+"   "+"roll"+String.valueOf(vec.z));
-        this.setYRot(-vec.x);//y axis left-hand grabbing law
-        this.setXRot(vec.y);//x axis right-hand grabbing law
-        this.setZRot(-vec.z);//z axis left-hand grabbing law
 
 
-        List<Vector3f> linear_and_angular_acc_in_glb=RotateToGlobal(ComputeLinearAndAngularAccInObjectFrame(ComputeSumOfForcesAndMoments(),inertia,mass));
-        Vector3f linear_acc= linear_and_angular_acc_in_glb.get(0);
-        Vector3f angular_acc=linear_and_angular_acc_in_glb.get(1);
+
+
+
 
 
     }
