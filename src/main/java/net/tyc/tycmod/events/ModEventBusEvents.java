@@ -11,9 +11,6 @@ import net.tyc.tycmod.entity.custom.RhinoEntity;
 
 @Mod.EventBusSubscriber(modid = TycMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ModEventBusEvents {
-    @SubscribeEvent
-    public static void registerAttributes(EntityAttributeCreationEvent event) {
-        event.put(ModEntities.RHINO.get(), RhinoEntity.createAttributes().build());
-    }
+
 }
 

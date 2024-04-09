@@ -6,6 +6,8 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
@@ -40,9 +42,7 @@ public abstract class AircraftEntity extends Entity {
     protected static final EntityDataAccessor<Float> f_302371_ = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.FLOAT);
     private static final Logger LOGGER = LogUtils.getLogger();
     protected Matrix3d RotationMatrix1to0=
-            new Matrix3d(1.0,0.0,0.0,
-            0.0,0.0,-1.0,
-            0.0,1.0,0.0);// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
+            new Matrix3d();// rotate matrix aircraft_frame to world frame, aircraft axis represented in world axis
     protected float ZRot=0;
     public float zRotO=0;
 
@@ -98,31 +98,40 @@ public abstract class AircraftEntity extends Entity {
             else {
                 double cos = area_norm.dot(speed_vector_in_object_frame)/(area_norm.length()*speed_vector_in_object_frame.length());
 
-                double S_eq = Math.abs(cos) * area+0.2*area;
+                double S_eq=rotate_axis=="-x"?Math.abs(cos) * area+0.2*area:Math.abs(cos) * area;
+
 
                 //compute norm_lift
                 Vec3 norm_lift;
-                norm_lift=speed_vector_in_object_frame.cross(area_norm).cross(speed_vector_in_object_frame).normalize();
+                //norm_lift=speed_vector_in_object_frame.cross(area_norm).cross(speed_vector_in_object_frame).normalize();
+                if(rotate_axis=="-x"){
+                norm_lift=new Vec3(0,1,0);}
+                else
+                {
+                    norm_lift=new Vec3(1,0,0);
+
+                }
 
                 //compute norm_friction
                 Vec3 norm_friction;
                 norm_friction=speed_vector_in_object_frame.normalize();
+                //LOGGER.info(norm_friction.toString());
 
                 //Compute Actual lift and friction coefficients
                 double C_l;
                 double C_d;
                 if (cos >= 0 && cos <= Math.cos(70 * Math.PI / 180.0)) {
                     //LOGGER.info("case1");
-                    if (balance_C_l == 0.0) {
-                        C_l = cos * (0.4 / Math.cos(70 * Math.PI / 180.0));
+                    if (balance_C_l == 0) {
+                        C_l = cos * (2000 / Math.cos(70 * Math.PI / 180.0));
                     } else {
                         C_l = balance_C_l + cos * (3 * balance_C_l / Math.cos(70 * Math.PI / 180.0));
                         //LOGGER.info(String.valueOf(C_l));
                     }
                 } else if (cos < 0 && cos >=  Math.cos(110 * Math.PI / 180.0)) {
                     //LOGGER.info("case2");
-                    if (balance_C_l == 0.0) {
-                        C_l = cos * (-0.4 / Math.cos(110 * Math.PI / 180.0));
+                    if (balance_C_l == 0) {
+                        C_l = cos * (-2000 / Math.cos(110 * Math.PI / 180.0));
                     } else {
                         C_l = balance_C_l + cos * (-3 * balance_C_l /  Math.cos(110 * Math.PI / 180.0));
                     }
@@ -135,17 +144,26 @@ public abstract class AircraftEntity extends Entity {
                 C_d = balance_C_d + cos * cos * 3 * balance_C_d;
                 //Compute lift force and friction force
                 double lift_coefficient=air_density*(speed_vector_in_object_frame.lengthSqr())*C_l*S_eq;
-                double friction_coefficient=air_density * (speed_vector_in_object_frame.lengthSqr()) * C_d * S_eq;
+                double friction_coefficient=speed_vector_in_object_frame.lengthSqr()==0?0.0:Math.max(air_density * (speed_vector_in_object_frame.lengthSqr()) * C_d * S_eq,air_density * (0.001) * C_d * S_eq);
                 Vec3 lift_force ;
                 lift_force=norm_lift.scale(lift_coefficient);
-                //LOGGER.info(lift_force.toString());
+                //LOGGER.info(String.valueOf(lift_coefficient));
+                //LOGGER.info(norm_lift.toString());
+
+                //if(rotate_axis=="y"){LOGGER.info(lift_force.toString());}
+
                 Vec3 friction_force;
                 friction_force=norm_friction.scale(friction_coefficient);
+                //LOGGER.info(String.valueOf(friction_coefficient));
+                //LOGGER.info(norm_friction.toString());
+                //LOGGER.info(friction_force.toString());
+
                 Vec3 sum_force;
                 sum_force=lift_force.add(friction_force);
                 Vec3 sum_moment;
 
                 sum_moment=relative_pos.cross(sum_force);
+
 
                 List<Vec3> sum_force_and_moment=new ArrayList<>();
                 sum_force_and_moment.add(sum_force);
@@ -167,8 +185,9 @@ public abstract class AircraftEntity extends Entity {
     protected Vec3 speed_vector_in_object_frame=Vec3.ZERO;
     protected Vec3 air_speed_in_object_frame=Vec3.ZERO;
     protected Vec3 angular_velocity=Vec3.ZERO;
-    protected double air_density=0.013d;
-    protected double throttle_percentage=0.0d;
+    protected double air_density=0.13;
+    protected double throttle_percentage=0.0;
+    public boolean setdeltamovement=true;
 
 
 
@@ -316,6 +335,9 @@ public abstract class AircraftEntity extends Entity {
 
         Vec3 sum_force;
         sum_force=gravity.add(engine_force).add(left_wing_force).add(right_wing_force).add(tail_force).add(vertical_tail_force);
+        //LOGGER.info(left_wing_force.toString());
+        //LOGGER.info(right_wing_force.toString());
+        //LOGGER.info(left_wing_force.toString());
 
         //compute sum moment, assume no moment for gravity and engine
         Vec3 left_wing_moment=left_wing.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
@@ -324,7 +346,7 @@ public abstract class AircraftEntity extends Entity {
         Vec3 vertical_tail_moment=vertical_tail.ComputeWingAirDynamicForcesInObjFrame(air_speed_in_object_frame,air_density).get(1);
         Vec3 sum_moment;
         sum_moment=left_wing_moment.add(right_wing_moment).add(tail_moment).add(vertical_tail_moment);
-
+        //LOGGER.info(sum_moment.toString());
         List<Vec3> force_and_moment= new ArrayList<>();
         force_and_moment.add(sum_force);
         force_and_moment.add(sum_moment);
@@ -353,6 +375,7 @@ public abstract class AircraftEntity extends Entity {
 
     public AircraftEntity(EntityType<?> p_310168_, Level p_309578_) {
         super(p_310168_, p_309578_);
+        this.setdeltamovement=true;
     }
 
     /**
@@ -383,6 +406,19 @@ public abstract class AircraftEntity extends Entity {
         } else {
             return true;
         }
+    }
+
+    @Override
+    public InteractionResult interact(Player pPlayer, InteractionHand pHand) {
+        if(pPlayer.getItemInHand(pHand).is(Items.AIR)) {
+            pPlayer.startRiding(this);
+            LOGGER.info("started riding");
+            return InteractionResult.SUCCESS;
+        }
+        else{return InteractionResult.PASS;}
+
+
+
     }
 
     boolean m_304763_(DamageSource p_309621_) {
@@ -439,8 +475,15 @@ public abstract class AircraftEntity extends Entity {
 
     @Override
     public void tick() {
+        if (setdeltamovement)
+        {
+            this.setDeltaMovement(0,0,0);
+            setdeltamovement=false;
+        }
+        clampSpeedVector();
+
         Matrix3d RotationMatrix0to1=new Matrix3d();
-        RotationMatrix1to0.invert(RotationMatrix0to1);
+        RotationMatrix1to0.transpose(RotationMatrix0to1);
         this.speed_vector_in_object_frame=premultiply(RotationMatrix0to1,getDeltaMovement());
         this.air_speed_in_object_frame=this.speed_vector_in_object_frame.reverse();
         List<Vec3> linear_and_angular_acc_in_glb=RotateToGlobal(ComputeLinearAndAngularAccInObjectFrame(ComputeSumOfForcesAndMoments(),inertia,mass));
@@ -451,14 +494,19 @@ public abstract class AircraftEntity extends Entity {
         this.move(MoverType.SELF,getDeltaMovement());
         //setup rotations
         Vec3 angular_acc=linear_and_angular_acc_in_glb.get(1);
+        //LOGGER.info(getDeltaMovement().toString());
         this.angular_velocity=angular_velocity.add(angular_acc.scale(0.001));
-        LOGGER.info(angular_velocity.toString());
-        this.RotationMatrix1to0.rotate(angular_velocity.length()*0.001,angular_velocity.normalize().x,angular_velocity.normalize().y,angular_velocity.normalize().z);
+
+        //LOGGER.info(angular_velocity.toString());
+        this.RotationMatrix1to0.rotate(-angular_velocity.length()*0.001,angular_velocity.normalize().x,angular_velocity.normalize().y,angular_velocity.normalize().z);
         Vec3 vec=this.EulerAnglesFromRotationMatrix();
         this.setYRot(-(float) vec.x);//y axis left-hand grabbing law
         this.setXRot((float) vec.y);//x axis right-hand grabbing law
         this.setZRot(-(float) vec.z);
         super.tick();
+        //LOGGER.info(getDeltaMovement().toString());
+        //LOGGER.info(angular_acc.toString());
+        this.move(MoverType.SELF,getDeltaMovement());
         this.zRotO = this.getZRot();
 
         //this.RotateSmallValueAround(0.05f,new Vector3f(1,0,1));
@@ -474,6 +522,11 @@ public abstract class AircraftEntity extends Entity {
 
 
 
+    }
+    protected void clampSpeedVector()
+    {
+        Vec3 v=getDeltaMovement();
+        setDeltaMovement(Math.abs(v.x)<=0.008?0:v.x,Math.abs(v.y)<=0.008?0:v.y,Math.abs(v.z)<0.008?0:v.z);
     }
 }
 

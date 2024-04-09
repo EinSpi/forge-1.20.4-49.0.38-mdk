@@ -24,6 +24,7 @@ public class Zero extends  AircraftEntity{
 
     public Zero(EntityType<? extends Zero> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
+
         SetUpAirDynamics();
         SetUpMass_Engine();
         this.blocksBuilding = true;
@@ -34,14 +35,15 @@ public class Zero extends  AircraftEntity{
 
     @Override
     protected void SetUpAirDynamics() {
-        this.left_wing=new AirDynamicElement(10.0,new Vec3(0,1,0),
-                "-x",0.0f,new Vec3(9,0,3),800000,0.05);
-        this.right_wing=new AirDynamicElement(10.0,new Vec3(0,1,0),
-                "-x",0.0f,new Vec3(-9,0,3),800000,0.05);
-        this.tail=new AirDynamicElement(5.0,new Vec3(0,1,0),
-                "-x",0.0f,new Vec3(0,0,-12),80,0.05);
-        this.vertical_tail=new AirDynamicElement(5.0,new Vec3(1,0,0),
-                "y",0.0f, new Vec3(0,0,-12),0.0,0.05);
+        //theta degree
+        this.left_wing=new AirDynamicElement(1000.0,new Vec3(0,1,0),
+                "-x",0f*(float) Math.PI/180f,new Vec3(9,0,3),2131,0);
+        this.right_wing=new AirDynamicElement(1000.0,new Vec3(0,1,0),
+                "-x",0f*(float) Math.PI/180f,new Vec3(-9,0,3),2131,0);
+        this.tail=new AirDynamicElement(500.0,new Vec3(0,1,0),
+                "-x",0.0f,new Vec3(0,0,-12),2131,0);
+        this.vertical_tail=new AirDynamicElement(500.0,new Vec3(1,0,0),
+                "y",20f*(float) Math.PI/180f, new Vec3(0,0,-12),0,0);
 
     }
 
