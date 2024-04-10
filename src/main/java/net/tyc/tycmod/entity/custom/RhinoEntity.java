@@ -150,4 +150,6 @@ public class RhinoEntity extends Animal {
     protected SoundEvent getDeathSound() {
         return SoundEvents.DOLPHIN_DEATH;
     }
+
+
 }

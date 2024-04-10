@@ -16,31 +16,30 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.tyc.tycmod.TycMod;
+import net.tyc.tycmod.entity.custom.AircraftEntity;
 import net.tyc.tycmod.entity.custom.Zero;
 import org.slf4j.Logger;
 
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class ZeroRenderer extends AircraftRenderer<Zero,ZeroModel<Zero>> {
+public class ZeroRenderer extends AircraftRenderer {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public ZeroRenderer(EntityRendererProvider.Context pContext) {
-        super(pContext,new ZeroModel<>(pContext.bakeLayer(ModModelLayers.ZERO_LAYER)),10f);
+        super(pContext);
 
     }
 
-
     @Override
-    public ResourceLocation getTextureLocation(Zero pEntity) {
+    public ResourceLocation getTextureLocation(AircraftEntity pEntity) {
         return new ResourceLocation(TycMod.MOD_ID,"textures/entity/rhino.png");
     }
 
-    @Override
-    public void render(Zero pEntity, float pEntityYaw, float pPartialTicks, PoseStack pMatrixStack,
-                       MultiBufferSource pBuffer, int pPackedLight) {
-        super.render(pEntity, pEntityYaw, pPartialTicks, pMatrixStack, pBuffer, pPackedLight);
-    }
+
+
+
+
 
 
 }

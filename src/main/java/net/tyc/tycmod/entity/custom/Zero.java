@@ -6,7 +6,11 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.vehicle.Boat;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
@@ -18,17 +22,16 @@ import org.joml.Matrix3f;
 import org.joml.Vector3f;
 
 public class Zero extends  AircraftEntity{
-    private static final EntityDataAccessor<Integer> DATA_ID_TYPE = SynchedEntityData.defineId(Boat.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> ATTACKING =
+            SynchedEntityData.defineId(RhinoEntity.class, EntityDataSerializers.BOOLEAN);
 
 
-
-    public Zero(EntityType<? extends Zero> pEntityType, Level pLevel) {
+    public Zero(EntityType<? extends AircraftEntity> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
-
         SetUpAirDynamics();
         SetUpMass_Engine();
-        this.blocksBuilding = true;
-
+        this.setNoGravity(true);
+        this.setSharedFlag(7,false);
 
     }
 
@@ -37,13 +40,13 @@ public class Zero extends  AircraftEntity{
     protected void SetUpAirDynamics() {
         //theta degree
         this.left_wing=new AirDynamicElement(1000.0,new Vec3(0,1,0),
-                "-x",0f*(float) Math.PI/180f,new Vec3(9,0,3),2131,0);
+                "-x",0f*(float) Math.PI/180f,new Vec3(9,0,3),2662,0);
         this.right_wing=new AirDynamicElement(1000.0,new Vec3(0,1,0),
-                "-x",0f*(float) Math.PI/180f,new Vec3(-9,0,3),2131,0);
+                "-x",0f*(float) Math.PI/180f,new Vec3(-9,0,3),1600,0);
         this.tail=new AirDynamicElement(500.0,new Vec3(0,1,0),
-                "-x",0.0f,new Vec3(0,0,-12),2131,0);
+                "-x",0f,new Vec3(0,0,-12),2131,0);
         this.vertical_tail=new AirDynamicElement(500.0,new Vec3(1,0,0),
-                "y",20f*(float) Math.PI/180f, new Vec3(0,0,-12),0,0);
+                "y",0f*(float) Math.PI/180f, new Vec3(0,0,-12),0,0);
 
     }
 
@@ -60,24 +63,8 @@ public class Zero extends  AircraftEntity{
 
     }
 
-    @Override
-    protected void readAdditionalSaveData(CompoundTag pCompound) {
-        if (pCompound.contains("Type", 8)) {
-            this.setVariant(Boat.Type.byName(pCompound.getString("Type")));
-        }
 
-    }
-    @Override
-    protected void addAdditionalSaveData(CompoundTag pCompound) {
-        pCompound.putString("Type", this.getVariant().getSerializedName());
-    }
-    public void setVariant(Boat.Type pVariant) {
-        this.entityData.set(DATA_ID_TYPE, pVariant.ordinal());
-    }
 
-    public Boat.Type getVariant() {
-        return Boat.Type.byId(this.entityData.get(DATA_ID_TYPE));
-    }
 
     @Override
     public void tick() {
@@ -88,5 +75,21 @@ public class Zero extends  AircraftEntity{
               //  0.0f,   -(float) Math.sin(theta),   (float) Math.cos(theta));
 
 
+    }
+
+    public static AttributeSupplier.Builder createAttributes() {
+        return Mob.createLivingAttributes()
+                .add(Attributes.MAX_HEALTH, 20D)
+                .add(Attributes.FOLLOW_RANGE, 24D)
+                .add(Attributes.MOVEMENT_SPEED, 0.25D)
+                .add(Attributes.ARMOR_TOUGHNESS, 0.1f)
+                .add(Attributes.ATTACK_KNOCKBACK, 0.5f)
+                .add(Attributes.ATTACK_DAMAGE, 2f)
+                .add(net.minecraftforge.common.ForgeMod.ENTITY_GRAVITY.get(),0.0);
+    }
+
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(ATTACKING, false);
     }
 }

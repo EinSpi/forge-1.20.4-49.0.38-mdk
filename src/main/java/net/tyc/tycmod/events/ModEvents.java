@@ -15,8 +15,7 @@ public class ModEvents {
 @SubscribeEvent
 public static void RideAircraft(PlayerInteractEvent.EntityInteract event)
 {
-    LOGGER.info("triggered Interact");
-    event.getTarget().interact(event.getEntity(),event.getHand());
+    event.getEntity().startRiding(event.getTarget());
 }
 
 }
