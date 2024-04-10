@@ -22,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.gameevent.DynamicGameEventListener;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.Vec3;
 import org.checkerframework.checker.units.qual.Mass;
@@ -34,6 +35,7 @@ import java.lang.Math;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
+import java.util.function.BiConsumer;
 
 public abstract class AircraftEntity extends Entity {
 
@@ -527,6 +529,12 @@ public abstract class AircraftEntity extends Entity {
     {
         Vec3 v=getDeltaMovement();
         setDeltaMovement(Math.abs(v.x)<=0.008?0:v.x,Math.abs(v.y)<=0.008?0:v.y,Math.abs(v.z)<0.008?0:v.z);
+    }
+
+    @Override
+    public InteractionResult interactAt(Player pPlayer, Vec3 pVec, InteractionHand pHand) {
+
+        return super.interactAt(pPlayer, pVec, pHand);
     }
 }
 
